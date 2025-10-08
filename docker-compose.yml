@@ -1,0 +1,51 @@
+version: '3.8'
+services:
+  db:
+    image: postgres latest
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: mydatabase
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  services:
+  backend:
+    build: ./backend
+    depends_on:
+      - db
+    environment:
+      DATABASE_URL: "postgresql://app:secret@db:5432/timeclock"
+      EDGE_SECRET: "supersecret"
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+  edge-sim:
+    build: ./edge
+    depends_on:
+      - backend
+    environment:
+      BACKEND_URL: http://backend:8000
+      EDGE_SECRET: supersecret
+    ports:
+      - '9000:9000' #from manuel simolate calls
+    volumes:
+      - ./edge:/app
+  frontend:
+    build: ./frontend
+    depends_on:
+      - backend
+    environment:
+    NEXT_PUBLIC_API_URL: http://backend:8000
+    ports:
+    - '3000:3000'
+    volumes:
+    - ./frontend:/app
+
+volumes:
+db_data:
