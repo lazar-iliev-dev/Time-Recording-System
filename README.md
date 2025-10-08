@@ -208,4 +208,4 @@ MIT © Lazar Iliev
 
 ## Author
 **Lazar Iliev** — Junior Developer  
-[LinkedIn](https://www.linkedin.com/in/lazar-iliev-dev) • [Portfolio]((https://github.com/lazar-iliev-dev))
+[LinkedIn](https://www.linkedin.com/in/lazar-iliev-dev) • [Portfolio](https://github.com/lazar-iliev-dev)
