@@ -3,3 +3,11 @@ uvicorn[standard]
 httpx
 pytest
 pytest-asyncio
+sqlmodel
+alembic
+psycopg2-binary    # Postgres driver for Alembic/SQLAlchemy
+sqlalchemy
+python-dotenv      # optional: env loading
+pydantic[email]    # optional: email validation
+passlib[bcrypt]   # optional: password hashing
+python-jose[cryptography]  # optional: JWT handling
