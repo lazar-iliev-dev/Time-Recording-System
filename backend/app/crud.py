@@ -1,13 +1,14 @@
-from sqlmodel import Select, Session
+from typing import List
+from sqlmodel import select, Session
 from .models import Event
 
-def create_event(db: Session, event: Event) -> Event:
+def create_event(session: Session, *, event: Event) -> Event:
     session.add(event)
     session.commit()
     session.refresh(event)
     return event
 
-def list_sessions(session: Session) -> list[Event]:
-    statement = Select(Event).order_by(Event.timestamp.desc())
+def list_events(session: Session) -> List[Event]:
+    statement = select(Event).order_by(Event.timestamp.desc())
     results = session.exec(statement)
     return results.all()

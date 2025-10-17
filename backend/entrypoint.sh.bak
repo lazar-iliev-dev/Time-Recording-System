@@ -20,7 +20,7 @@ alembic upgrade head
 
 # Start the web server
 echo "[entrypoint] Starting uvicorn..."
-exec uvicorn app.main:app --host 0.0.0.0 --port 8000
+exec uvicorn main:app --host 0.0.0.0 --port 8000
 
 cp backend/entrypoint.sh backend/entrypoint.sh.bak
 sed -i '' 's/exec uvicorn main:app/exec uvicorn app.main:app/' backend/entrypoint.sh

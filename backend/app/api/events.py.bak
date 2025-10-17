@@ -1,4 +1,3 @@
-# backend/app/api/events.py
 from fastapi import APIRouter, Depends, Header, HTTPException
 from typing import List
 
