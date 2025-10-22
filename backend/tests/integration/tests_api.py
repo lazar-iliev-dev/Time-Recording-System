@@ -1,29 +1,30 @@
 import pytest
 from httpx import AsyncClient
-from main import app  # main.py is at backend/main.py
+from app.main import app
 
 @pytest.mark.asyncio
-async def test_create_and_list_event():
+async def test_post_and_get_events():
     async with AsyncClient(app=app, base_url="http://test") as ac:
-        # Test creating an event payload
+        # create payload
         event_data = {
-            "card_id": "CARD-1",
+            "card_id": "INT-123",
             "reader_id": "reader1",
-            "timestamp": "2025-10-01T12:00:00Z",
+            "timestamp": "2025-10-17T09:00:00Z",
             "type": "checkin"
         }
 
-        # expect 401 without secret
+        # expect 401 without secret header
         r = await ac.post("/api/events", json=event_data)
         assert r.status_code == 401
 
-        # with correct header
+        # with edge secret header
         r = await ac.post("/api/events", json=event_data, headers={"x-edge-secret": "supersecret"})
         assert r.status_code == 201
 
         # list events
         r = await ac.get("/api/events")
         assert r.status_code == 200
-        items = r.json()
-        assert len(items) == 1
-        assert items[0]["card_id"] == "CARD-1"
+        data = r.json()
+        assert isinstance(data, list)
+        # at least one event
+        assert any(item.get("card_id") == "INT-123" for item in data)

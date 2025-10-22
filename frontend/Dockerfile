@@ -1,9 +1,10 @@
-FROM node:18-alpine
+FROM node:20-bullseye-slim
+
 WORKDIR /app
+
 COPY package*.json ./
 
-# fallback to npm install if package-lock.json missing
-RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
+RUN npm ci --no-audit --no-fund
 
 COPY . .
 
