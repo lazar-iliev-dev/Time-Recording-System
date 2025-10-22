@@ -1,0 +1,31 @@
+# backend/app/api/events.py
+from fastapi import APIRouter, Depends, Header, HTTPException
+from typing import List
+
+from sqlmodel import Session, select
+
+from ..db import get_session
+from ..models import Event
+from ..crud import create_event, list_events
+
+router = APIRouter()
+
+
+@router.post("/api/events", status_code=201)
+def post_event(
+    event: Event,
+    x_edge_secret: str = Header(None),
+    session: Session = Depends(get_session),
+):
+    if x_edge_secret != "supersecret":
+        raise HTTPException(status_code=401, detail="Invalid edge secret")
+    ev = create_event(session=session, event=event)
+    return {"status": "ok", "id": ev.id}
+
+
+@router.get("/api/events", response_model=List[Event])
+def get_events(session: Session = Depends(get_session)):
+    # correctly import select above and use it here
+    stmt = select(Event).order_by(Event.timestamp.desc())
+    results = session.exec(stmt)
+    return results.all()
