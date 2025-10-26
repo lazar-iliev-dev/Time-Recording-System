@@ -45,7 +45,7 @@ The entire system is designed so that it can be run in Docker without physical h
 
 ---
 
-## AArchitecture (short)
+## Architecture (short)
 
 ```
 [Edge-Sim] --HTTP--> [Backend API (FastAPI)] <-----> [Postgres DB]
@@ -102,90 +102,100 @@ Important variables:
 
 ---
 
-## TDD‑Workflow (recommended)
+## TDD Workflow (Recommended)
 
-**Backend (pytest)**
+### Backend (pytest)
 
-* First write a unit test in `backend/tests/unit/` → `docker compose run --rm backend pytest -q`.
-* Implement minimal code in `backend/` until the test is green.
+* Write a unit test in `backend/tests/unit/` → `docker compose run --rm backend pytest -q`
+* Implement minimal code in `backend/` until the test passes.
 * Add integration tests in `backend/tests/integration/` that run against the `db` service.
 
-**Frontend (vitest + RTL)**
+### Frontend (Vitest + React Testing Library)
 
 * Component tests in `frontend/__tests__` → `docker compose run --rm frontend npm run test`
 
-**E2E (Playwright)**
+### End-to-End (Playwright)
 
-* Start Compose Services (`docker compose up -d`) → Run Playwright scripts in `e2e/`; Edge Simulator replays deterministic event logs.
+End-to-end tests ensure all services (frontend ↔ backend ↔ database ↔ edge simulator) work together correctly.
 
-Example commands:
+Run locally:
 
-    ```bash
-        # Backend Unit
-        docker compose run --rm backend pytest tests/unit
-        # Integration
-        docker compose up -d db backend
-        docker compose run --rm backend pytest tests/integration
-        # E2E (lokal)
-        docker compose up -d
-        npx playwright test e2e
-    ```
+```bash
+# start all containers
+docker compose up -d db backend frontend edge-sim
 
----
-
-## API (Kurzreferenz)
-
-### POST /api/events
-
-Ingest eines Karten‑Events (Edge benutzt `x-edge-secret` Header zur Authentifizierung).
-
-**Payload**
-
-```json
-{
-  "card_id": "CARD-1234",
-  "reader_id": "desk-1",
-  "timestamp": "2025-10-07T08:15:00Z",
-  "type": "checkin"
-}
+# execute Playwright tests
+cd e2e
+npx playwright install --with-deps
+npx playwright test
 ```
 
-**Header**: `x-edge-secret: <EDGE_SECRET>`
+List all available tests:
 
-### GET /api/events
-
-Lists all events (MVP — paging & filtering later)
-
----
-
-## Edge Simulator — Usage
-
-* **Manual trigger**: `POST /simulate` with `{ card_id, reader_id, type }` sends an event to the backend.
-* **Replay Mode**: Provide a file `events.json/csv`; the simulator sends the events deterministically — useful for E2E tests.
+```bash
+npx playwright test --list
+```
 
 ---
 
-## Security & Data Protection
-* Timestamps are stored in UTC; UI converts to `Europe/Berlin`.
-* Minimal PII footprint: only `card_id` and optionally `name` (if explicitly required) are stored.
-* Secrets are managed via environment variables. Use Docker Secrets or a vault solution for production.
-* Automatic image scans (Trivy / Snyk) in CI recommended.
+## (Optional) Seed Demo Data
+
+Quickly populate your local database with demo events for testing:
+
+```bash
+docker compose run --rm backend python scripts/seed.py
+```
+
+Verify the data was inserted:
+
+```bash
+docker compose exec db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT * FROM event;"
+```
+
+Or via API:
+
+```bash
+curl http://localhost:8000/api/events | jq .
+```
 
 ---
 
-## CI / Quality Gates
+## Continuous Integration (GitHub Actions)
 
-Recommended GitHub Actions jobs:
+All tests run automatically in CI using the workflow:
 
-1. `lint` (frontend + backend)
-2. `unit-tests` (parallel)
-3. `integration-tests` (Docker Compose Services)
-4. `e2e-tests` (Playwright)
-5. `security-scan` (Trivy/Snyk)
+`.github/workflows/ci.yml`
+
+It includes the following jobs:
+
+1. **Lint** – frontend & backend
+2. **Unit tests** – Python (pytest) + Next.js (Vitest)
+3. **Integration tests** – backend ↔ database
+4. **E2E tests** – Playwright (Dockerized)
+5. **Security scan** – Trivy / Snyk (optional)
+
+To simulate locally:
+
+```bash
+# run backend and frontend tests
+docker compose run --rm backend pytest -q
+cd frontend && npm run test
+
+# run full E2E suite
+cd ../e2e && npx playwright test
+```
+
+If you use [`act`](https://github.com/nektos/act):
+
+```bash
+act -j ci
+```
+
+This emulates the GitHub Actions pipeline locally.
 
 ---
 
-## Ordnerstruktur 
+## Project Structure
 
 ```
 .
@@ -201,11 +211,11 @@ Recommended GitHub Actions jobs:
 
 ---
 
-## Lizenz
+## License
 MIT © Lazar Iliev
 
 ---
 
-## Author
+## Author / Maintainer
 **Lazar Iliev** — Junior Developer  
 [LinkedIn](https://www.linkedin.com/in/lazar-iliev-dev) • [Portfolio](https://github.com/lazar-iliev-dev)
