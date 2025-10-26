@@ -195,51 +195,7 @@ This emulates the GitHub Actions pipeline locally.
 
 ---
 
-## CI / Quality Gates
-
-Recommended GitHub Actions jobs:
-
-1. `lint` (frontend + backend)
-2. `unit-tests` (parallel)
-3. `integration-tests` (Docker Compose Services)
-4. `e2e-tests` (Playwright)
-5. `security-scan` (Trivy/Snyk)
-
----
-
-### Continuous Integration (GitHub Actions)
-
-All tests run automatically in CI using the workflow:
-
-  `.github/workflows/ci.yml`
-
-It runs the following jobs on each push or pull request:
-
-Lint (frontend + backend)
-Unit tests — Python (pytest) and Next.js (Vitest)
-Integration tests — backend ↔ database
-E2E tests — Playwright (Dockerized)
-Security scan — optional (Trivy/Snyk)
-
-To simulate the same workflow locally:
-
-# run backend and frontend tests
-`docker compose run --rm backend pytest -q`
-`cd frontend && npm run test`
-
-# run full E2E
-`cd ../e2e && npx playwright test`
-
-
-Or, if you use act:
-
-`act -j ci`
-
-This emulates the GitHub Actions pipeline locally.
-
----
-
-## Ordnerstruktur 
+## Project Structure
 
 ```
 .
@@ -255,11 +211,11 @@ This emulates the GitHub Actions pipeline locally.
 
 ---
 
-## Lizenz
+## License
 MIT © Lazar Iliev
 
 ---
 
-## Author
+## Author / Maintainer
 **Lazar Iliev** — Junior Developer  
 [LinkedIn](https://www.linkedin.com/in/lazar-iliev-dev) • [Portfolio](https://github.com/lazar-iliev-dev)
