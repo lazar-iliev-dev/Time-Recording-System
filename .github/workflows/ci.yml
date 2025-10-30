@@ -49,7 +49,10 @@ jobs:
           POSTGRES_DB: testdb
         ports: ['5432:5432']
         options: >-
-          --health-cmd "pg_isready -U test -d testdb" --health-interval 10s --health-timeout 5s --health-retries 5
+          --health-cmd "pg_isready -U test -d testdb"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     steps:
       - uses: actions/checkout@v4
@@ -62,10 +65,19 @@ jobs:
       - name: Install backend deps
         run: pip install -r backend/requirements.txt
 
+      - name: Wait for Postgres
+        run: |
+          for i in $(seq 1 30); do
+            pg_isready -h localhost -p 5432 -U test -d testdb && break
+            echo "waiting for postgres..."
+            sleep 1
+          done
+
       - name: Run backend tests
         env:
           DATABASE_URL: postgresql://test:test@localhost:5432/testdb
           EDGE_SECRET: supersecret
+          PYTHONPATH: ${{ github.workspace }}/backend
         run: |
           cd backend
           pytest -q
@@ -99,7 +111,10 @@ jobs:
           POSTGRES_PASSWORD: test
           POSTGRES_DB: testdb
         options: >-
-          --health-cmd "pg_isready -U test -d testdb" --health-interval 10s --health-timeout 5s --health-retries 5
+          --health-cmd "pg_isready -U test -d testdb"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     steps:
       - uses: actions/checkout@v4
@@ -113,7 +128,6 @@ jobs:
 
       - name: Start services
         run: |
-          # start db first, then the rest
           docker compose up -d db
           docker compose up -d backend frontend edge-sim
           sleep 5
