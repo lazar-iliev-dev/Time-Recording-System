@@ -37,7 +37,7 @@ jobs:
           npm ci
           npm run lint --if-present || true
 
-  backend-tests:
+    backend-tests:
     name: Backend Tests
     runs-on: ubuntu-latest
     services:
@@ -49,11 +49,7 @@ jobs:
           POSTGRES_DB: testdb
         ports: ['5432:5432']
         options: >-
-          --health-cmd "pg_isready -U test -d testdb"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
+          --health-cmd "pg_isready -U test -d testdb" --health-interval 10s --health-timeout 5s --health-retries 5
     steps:
       - uses: actions/checkout@v4
 
@@ -65,23 +61,27 @@ jobs:
       - name: Install backend deps
         run: pip install -r backend/requirements.txt
 
-      - name: Wait for Postgres
+      - name: Wait for Postgres to be ready
         run: |
           for i in $(seq 1 30); do
-            pg_isready -h localhost -p 5432 -U test -d testdb && break
-            echo "waiting for postgres..."
-            sleep 1
+            pg_isready -h localhost -U test -d testdb && break || sleep 1
           done
+
+      - name: Run alembic migrations
+        env:
+          DATABASE_URL: postgresql://test:test@localhost:5432/testdb
+        run: |
+          cd backend
+          alembic upgrade head
 
       - name: Run backend tests
         env:
           DATABASE_URL: postgresql://test:test@localhost:5432/testdb
           EDGE_SECRET: supersecret
-          PYTHONPATH: ${{ github.workspace }}/backend
         run: |
           cd backend
-          pytest -q
-
+          PYTHONPATH=$(pwd) pytest -q
+          
   frontend-tests:
     name: Frontend Tests
     runs-on: ubuntu-latest
