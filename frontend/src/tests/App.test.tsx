@@ -6,4 +6,4 @@ describe ('App smoke ' , () => {
        // render(Home) oder einfacher: expect(true).toBe(true) falls keine Komponente existiert
     expect(true).toBe(true)
     })
-})
+})  

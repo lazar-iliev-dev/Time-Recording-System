@@ -2,99 +2,153 @@ name: CI
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [main, master]
   pull_request:
-    branches: [ main, master ]
+    branches: [main, master]
 
 jobs:
-  lint:
-    name: Lint & check
+  lint_check:
+    name: ${{ matrix.target }} lint & check
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target: [backend, frontend]
+
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Python
+      # Backend (Python) lint
+      - if: matrix.target == 'backend'
         uses: actions/setup-python@v4
         with:
-          python-version: '3.11'
+          python-version: '3.12'
 
-      - name: Setup Node
+      - if: matrix.target == 'backend'
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('backend/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - if: matrix.target == 'backend'
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+
+      - if: matrix.target == 'backend'
+        run: |
+          pip install flake8
+          flake8 backend || true
+
+      # Frontend (Node) lint
+      - if: matrix.target == 'frontend'
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      - name: Install backend deps
-        run: python -m pip install --upgrade pip && pip install -r backend/requirements.txt
+      - if: matrix.target == 'frontend'
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('frontend/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
 
-      - name: Run backend lint (flake8)
-        run: |
-          pip install flake8 || true
-          flake8 backend || true
-
-      - name: Frontend lint
+      - if: matrix.target == 'frontend'
         run: |
           cd frontend
           npm ci
           npm run lint --if-present || true
 
-    backend-tests:
+  backend_tests:
     name: Backend Tests
     runs-on: ubuntu-latest
+    needs: lint_check
     services:
       postgres:
-        image: postgres:17
+        image: postgres:16-alpine
         env:
           POSTGRES_USER: test
           POSTGRES_PASSWORD: test
           POSTGRES_DB: testdb
-        ports: ['5432:5432']
         options: >-
-          --health-cmd "pg_isready -U test -d testdb" --health-interval 10s --health-timeout 5s --health-retries 5
+          --health-cmd "pg_isready -U test -d testdb"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v4
+      - uses: actions/setup-python@v4
         with:
-          python-version: '3.11'
+          python-version: '3.12'
 
-      - name: Install backend deps
-        run: pip install -r backend/requirements.txt
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('backend/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
 
-      - name: Wait for Postgres to be ready
+      - run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+
+      - name: Wait for DB (Python check — works in act + GH Actions)
         run: |
-          for i in $(seq 1 30); do
-            pg_isready -h localhost -U test -d testdb && break || sleep 1
-          done
+          python - <<'PY'
+          import time, sys
+          import psycopg2
+          dsn = "host=postgres port=5432 dbname=testdb user=test password=test"
+          for i in range(30):
+              try:
+                  conn = psycopg2.connect(dsn, connect_timeout=2)
+                  conn.close()
+                  print("postgres reachable")
+                  sys.exit(0)
+              except Exception as e:
+                  print("waiting for postgres...", i, str(e))
+                  time.sleep(1)
+          print("postgres did not become ready")
+          sys.exit(1)
+          PY
 
-      - name: Run alembic migrations
+      - name: Alembic migrations
         env:
-          DATABASE_URL: postgresql://test:test@localhost:5432/testdb
+          DATABASE_URL: postgresql://test:test@postgres:5432/testdb
         run: |
           cd backend
           alembic upgrade head
 
-      - name: Run backend tests
+      - name: Pytest
         env:
-          DATABASE_URL: postgresql://test:test@localhost:5432/testdb
+          DATABASE_URL: postgresql://test:test@postgres:5432/testdb
           EDGE_SECRET: supersecret
         run: |
           cd backend
           PYTHONPATH=$(pwd) pytest -q
-          
-  frontend-tests:
+
+  frontend_tests:
     name: Frontend Tests
     runs-on: ubuntu-latest
+    needs: lint_check
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      - name: Install & run frontend tests
-        run: |
+      - uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('frontend/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      - run: |
           cd frontend
           npm ci
           npm test --if-present
@@ -102,19 +156,7 @@ jobs:
   e2e:
     name: E2E (Playwright)
     runs-on: ubuntu-latest
-    needs: [backend-tests, frontend-tests]
-    services:
-      postgres:
-        image: postgres:17
-        env:
-          POSTGRES_USER: test
-          POSTGRES_PASSWORD: test
-          POSTGRES_DB: testdb
-        options: >-
-          --health-cmd "pg_isready -U test -d testdb"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
+    needs: [backend_tests, frontend_tests]
 
     steps:
       - uses: actions/checkout@v4
@@ -122,29 +164,34 @@ jobs:
       - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@v2
 
-      - name: Build images
-        run: |
-          docker compose build --no-cache backend frontend edge-sim
+      - name: Build only needed images
+        run: docker compose build backend frontend edge-sim --no-cache
 
-      - name: Start services
+      - name: Start stack (DB + API + UI)
         run: |
-          docker compose up -d db
-          docker compose up -d backend frontend edge-sim
-          sleep 5
-
-      - name: Wait for backend to be ready
-        run: |
-          for i in $(seq 1 30); do
-            if curl -sSf http://localhost:8000/health >/dev/null 2>&1; then
-              echo "backend ready"
-              break
+          docker compose up -d db backend frontend edge-sim
+          # Wait for backend to be healthy (timeout 60s)
+          for i in {1..30}; do
+            if curl -sSf http://localhost:8000/health > /dev/null 2>&1; then
+              echo "✓ Backend is healthy"
+              exit 0
             fi
-            echo "waiting for backend..."
-            sleep 1
+            echo "Waiting for backend… ($i/30)"
+            sleep 2
           done
+          echo "✗ Backend did not become healthy"
+          docker compose logs backend
+          exit 1
 
-      - name: Run Playwright tests
+      - name: Playwright deps & run
+        working-directory: e2e
         run: |
-          cd e2e
           npx playwright install --with-deps
           npx playwright test --reporter=github
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: e2e/playwright-report/
