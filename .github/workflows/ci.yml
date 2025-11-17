@@ -47,9 +47,10 @@ jobs:
           exit 1
 
       # --- Configure DATABASE_URL for backend ---
-      - name: Export DB URL
+      - name: Install backend as a package
         run: |
-          echo "DATABASE_URL=postgresql://test:test@localhost:5432/testdb" >> $GITHUB_ENV
+          cd backend
+          pip install -e .
 
       # --- Install backend dependencies ---
       - name: Install backend dependencies
